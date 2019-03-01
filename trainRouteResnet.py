@@ -1,47 +1,53 @@
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import os
-import time
 import argparse
 
 import torchvision.models as models
 import easydict as edict
 from util.common import *
 from loader.data_loader import places365_imagenet_loader
-# from models.alexnet import AlexNet, CapAlexNet1, CapAlexNet2
 
 parser = argparse.ArgumentParser(description='PyTorch')
-parser.add_argument('--arch', default='capalex1', type=str, help='arch')
-parser.add_argument('--dataset', default='places365', type=str, help='arch')
+parser.add_argument('--arch', default='resnet18_fc_ma', type=str, help='arch')
+parser.add_argument('--dataset', default='places365', type=str, help='dataset')
+parser.add_argument('--mark', default='nm', type=str, help='mark')
 
 args = parser.parse_args()
 
 
 settings = edict.EasyDict({
     "GPU" : True,
-    "IMG_SIZE" : 227,
+    "IMG_SIZE" : 224,
     "CNN_MODEL" : MODEL_DICT[args.arch],
     "DATASET" : args.dataset,
     "DATASET_PATH" : DATASET_PATH[args.dataset],
-    "MODEL_FILE" : 'zoo/alexnet_places365.pth.tar',
+    "NUM_CLASSES" : NUM_CLASSES[args.dataset],
+    "MODEL_FILE" : 'result/pytorch_resnet18_fc_ma_nm_places365/snapshot/epoch_0.pth',
     "WORKERS" : 16,
-    "BATCH_SIZE" : 256,
+    "BATCH_SIZE" : 192,
     "PRINT_FEQ" : 10,
     "LR" : 0.1,
     "EPOCHS" : 90,
 })
-settings.OUTPUT_FOLDER = "result/pytorch_{}_{}".format(args.arch, args.dataset)
+
+torch.manual_seed(0)
+
+if settings.GPU:
+    device = torch.device('cuda')
+else:
+    device = torch.device('cpu')
+
+settings.OUTPUT_FOLDER = "result/pytorch_{}_{}_{}".format(args.arch, args.mark, args.dataset)
 
 snapshot_dir = dir(os.path.join(settings.OUTPUT_FOLDER, 'snapshot'))
 log_dir = dir(os.path.join(settings.OUTPUT_FOLDER, 'log'))
-print = log_f(os.path.join(log_dir, "%s.txt" % time.strftime("%Y-%m-%d-%H:%M")))
+log_file = open(os.path.join(log_dir, "%s.txt" % time.strftime("%Y-%m-%d-%H:%M")), 'w')
+print = log_f(log_file)
 
 
-def train_caffenet(model, train_loader, val_loader, dir=None):
-
-
+def train_resnet(model, train_loader, val_loader, dir=None):
+    check_point = torch.load(settings.MODEL_FILE)
+    model.load_state_dict(check_point['state_dict'])
+    epoch_cur = check_point['epoch']
     if settings.GPU:
         criterion = nn.CrossEntropyLoss().cuda()
     else:
@@ -55,7 +61,7 @@ def train_caffenet(model, train_loader, val_loader, dir=None):
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
-    for epoch in range(settings.EPOCHS):
+    for epoch in range(epoch_cur+1, settings.EPOCHS):
 
         print('Epoch[%d/%d]' % (epoch, settings.EPOCHS))
         # train
@@ -66,29 +72,33 @@ def train_caffenet(model, train_loader, val_loader, dir=None):
         data_time = AverageMeter()
         end = time.time()
 
-
+        # if epoch == 2:
+        #     p()
         for i, (input, target) in enumerate(train_loader):
 
+            # if i > 21:
+            #     break
             # input = torch.FloatTensor(input)
-            if settings.GPU:
-                target = target.cuda()
-                input = input.cuda()
+            target = target.to(device=device)
+            input = input.to(device=device)
 
             # measure data loading time
             data_time.update(time.time() - end)
 
-            target = target.cuda(async=True)
             input_var = torch.autograd.Variable(input)
             target_var = torch.autograd.Variable(target)
             # compute output
             output = model(input_var)
             loss = criterion(output, target_var)
+            if loss > 10:
+                p('loss explosion!!')
+                break
 
             # measure accuracy and record loss
             prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-            losses.update(loss.data[0], input.size(0))
-            top1.update(prec1[0], input.size(0))
-            top5.update(prec5[0], input.size(0))
+            losses.update(loss.item(), input.size(0))
+            top1.update(prec1.item(), input.size(0))
+            top5.update(prec5.item(), input.size(0))
 
             # compute gradient and do SGD step
             optimizer.zero_grad()
@@ -110,45 +120,7 @@ def train_caffenet(model, train_loader, val_loader, dir=None):
                     top1=top1, top5=top5))
         print(' * TRAIN Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'.format(top1=top1, top5=top5))
 
-
-        # val
-        losses = AverageMeter()
-        top1 = AverageMeter()
-        top5 = AverageMeter()
-        model.eval()
-        for i, (input, target) in enumerate(val_loader):
-            start_idx = i * settings.BATCH_SIZE
-            end_idx = min((i + 1) * settings.BATCH_SIZE, len(val_loader.dataset))
-            # input = torch.FloatTensor(input)
-            if settings.GPU:
-                target = target.cuda()
-                input = input.cuda()
-            input_var = torch.autograd.Variable(input, volatile=True)
-            target_var = torch.autograd.Variable(target, volatile=True)
-
-            # compute output
-            fc_output = model(input_var)
-
-            loss = criterion(fc_output, target_var)
-
-            # measure accuracy and record loss
-            prec1, prec5 = accuracy(fc_output.data, target, topk=(1, 5))
-            losses.update(loss.data[0], input.size(0))
-            top1.update(prec1[0], input.size(0))
-            top5.update(prec5[0], input.size(0))
-
-            if i % settings.PRINT_FEQ == 0:
-                print('Val: [{0}/{1}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                      'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                      'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                    i, len(val_loader), batch_time=batch_time, data_time=data_time, loss=losses,
-                    top1=top1, top5=top5))
-
-
-        print(' * VAL Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'.format(top1=top1, top5=top5))
+        # val_resnet(model, val_loader)
 
         torch.save({
             'epoch': epoch,
@@ -159,32 +131,26 @@ def train_caffenet(model, train_loader, val_loader, dir=None):
         adjust_learning_rate(optimizer, epoch)
 
 
-def test_caffenet(test_loader, val_loader, snapshot_dir):
-    # model = AdditiveAlexNet(dropout=False)
-    model = torch.load(settings.MODEL_FILE)
-    if settings.GPU:
-        model.cuda()
-    model.eval()
+def val_resnet(model, val_loader):
+
     if settings.GPU:
         criterion = nn.CrossEntropyLoss().cuda()
     else:
         criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(settings.EPOCHS):
-        # filename = os.path.join(snapshot_dir, 'epoch_%d.pth' % epoch)
-        # dt = torch.load(filename)
-        # model.load_state_dict(dt['state_dict'])
-        # model.load_state_dict(torch.load(settings.MODEL_FILE))
-
-        losses = AverageMeter()
-        top1 = AverageMeter()
-        top5 = AverageMeter()
-        for i, (input, target) in enumerate(test_loader):
-            if settings.GPU:
-                target = target.cuda()
-                input = input.cuda()
-            input_var = torch.autograd.Variable(input, volatile=True)
-            target_var = torch.autograd.Variable(target, volatile=True)
+    # val
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+    model.eval()
+    for i, (input, target) in enumerate(val_loader):
+        target = target.to(device=device)
+        input = input.to(device=device)
+        with torch.no_grad():
+            input_var = torch.autograd.Variable(input)
+            target_var = torch.autograd.Variable(target)
 
             # compute output
             fc_output = model(input_var)
@@ -193,35 +159,23 @@ def test_caffenet(test_loader, val_loader, snapshot_dir):
 
             # measure accuracy and record loss
             prec1, prec5 = accuracy(fc_output.data, target, topk=(1, 5))
-            losses.update(loss.data[0], input.size(0))
-            top1.update(prec1[0], input.size(0))
-            top5.update(prec5[0], input.size(0))
-        test_acc = top1.avg
+        losses.update(loss.item(), input.size(0))
+        top1.update(prec1.item(), input.size(0))
+        top5.update(prec5.item(), input.size(0))
 
-        losses = AverageMeter()
-        top1 = AverageMeter()
-        top5 = AverageMeter()
-        for i, (input, target) in enumerate(val_loader):
-            if settings.GPU:
-                target = target.cuda()
-                input = input.cuda()
-            input_var = torch.autograd.Variable(input, volatile=True)
-            target_var = torch.autograd.Variable(target, volatile=True)
+        if i % settings.PRINT_FEQ == 0:
+            print('Val: [{0}/{1}]\t'
+                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                i, len(val_loader), batch_time=batch_time, data_time=data_time, loss=losses,
+                top1=top1, top5=top5))
 
-            # compute output
-            fc_output = model(input_var)
 
-            loss = criterion(fc_output, target_var)
+    print(' * VAL Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'.format(top1=top1, top5=top5))
 
-            # measure accuracy and record loss
-            prec1, prec5 = accuracy(fc_output.data, target, topk=(1, 5))
-            losses.update(loss.data[0], input.size(0))
-            top1.update(prec1[0], input.size(0))
-            top5.update(prec5[0], input.size(0))
-        val_acc = top1.avg
-
-        print('EPOCH [%d] (dropout) VAL Prec@1 %.3f \t TEST Prec@1 %.3f' % (epoch, dt['best_prec1'], test_acc))
-        print('EPOCH [%d] VAL Prec@1 %.3f \t TEST Prec@1 %.3f' % (epoch, val_acc, test_acc))
 
 
 
@@ -235,12 +189,13 @@ def main():
 
 
     # model = finetune_model
-    model = settings.CNN_MODEL()
+    model = settings.CNN_MODEL(pretrained=False, num_classes=settings.NUM_CLASSES)
+    p(model)
     if settings.GPU:
         model.cuda()
     model.train()
-    train_caffenet(model, train_loader, val_loader, snapshot_dir)
-    # test_caffenet(val_loader, val_loader, snapshot_dir)
+    train_resnet(model, train_loader, val_loader, snapshot_dir)
+    # val_resnet(model, val_loader, snapshot_dir)
 
 
 
