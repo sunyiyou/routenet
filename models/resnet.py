@@ -3,7 +3,8 @@ import math
 import torch.utils.model_zoo as model_zoo
 from models.route import *
 
-__all__ = ['ResNet', 'resnet18', 'resnet18_fc_ma', 'resnet34', 'resnet50', 'resnet101',
+__all__ = ['ResNet', 'resnet18', 'resnet18_fc_ma', 'resnet18_fc_ms',
+           'resnet34', 'resnet50', 'resnet101',
            'resnet152']
 
 
@@ -133,22 +134,55 @@ class AbstractResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
+    def features(self, x):
+        x = self.maxpool(self.relu(self.bn1(self.conv1(x))))
+        x = self.layer4(self.layer3(self.layer2(self.layer1(x))))
+        return x
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+    def forward(self, x):
+        x = self.features(x)
 
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
 
         return x
+
+    def load_state_dict(self, state_dict, strict=True):
+        missing_keys = []
+        unexpected_keys = []
+        error_msgs = []
+
+        # copy state_dict so _load_from_state_dict can modify it
+        metadata = getattr(state_dict, '_metadata', None)
+        state_dict = state_dict.copy()
+        if metadata is not None:
+            state_dict._metadata = metadata
+
+        def load(module, prefix=''):
+            local_metadata = {} if metadata is None else metadata.get(prefix[:-1], {})
+            module._load_from_state_dict(
+                state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
+            for name, child in module._modules.items():
+                if child is not None:
+                    load(child, prefix + name + '.')
+
+        load(self)
+
+        if strict:
+            error_msg = ''
+            if len(unexpected_keys) > 0:
+                error_msgs.insert(
+                    0, 'Unexpected key(s) in state_dict: {}. '.format(
+                        ', '.join('"{}"'.format(k) for k in unexpected_keys)))
+            if len(missing_keys) > 0:
+                error_msgs.insert(
+                    0, 'Missing key(s) in state_dict: {}. '.format(
+                        ', '.join('"{}"'.format(k) for k in missing_keys)))
+
+        if len(error_msgs) > 0:
+            print('Warning(s) in loading state_dict for {}:\n\t{}'.format(self.__class__.__name__, "\n\t".join(error_msgs)))
+
 
 class ResNet(AbstractResNet):
 
@@ -163,25 +197,22 @@ class ResNetFcMaxAct(AbstractResNet):
 
     def __init__(self, block, layers, num_classes=1000):
         super(ResNetFcMaxAct, self).__init__(block, layers, num_classes)
-        self.rfc = RouteFcMaxAct(512 * block.expansion, num_classes)
+        self.fc = RouteFcMaxAct(512 * block.expansion, num_classes)
+        self._initial_weight()
+
+#final fc route by max activation
+class ResNetFcMeanShrink(AbstractResNet):
+
+    def __init__(self, block, layers, num_classes=1000):
+        super(ResNetFcMeanShrink, self).__init__(block, layers, num_classes)
+        self.fc = RouteFcMeanShrink(512 * block.expansion, num_classes)
         self._initial_weight()
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
-        x = self.rfc(x)
-
+        x = self.features(x)
+        x = self.fc(x)
         return x
+
 
 
 def resnet18(pretrained=False, **kwargs):
@@ -204,6 +235,12 @@ def resnet18(pretrained=False, **kwargs):
 
 def resnet18_fc_ma(pretrained=False, **kwargs):
     model = ResNetFcMaxAct(BasicBlock, [2, 2, 2, 2], **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet18']), strict=False)
+    return model
+
+def resnet18_fc_ms(pretrained=False, **kwargs):
+    model = ResNetFcMeanShrink(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet18']), strict=False)
     return model

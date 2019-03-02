@@ -8,7 +8,7 @@ from models.alexnet import AlexNet
 from models.resnet import *
 
 DATASET_PATH = {
-    'places365': '/home/sunyiyou/dataset/places365_standard',
+    'places365': '/Users/sunyiyou/dataset/places365_standard',
     'imagenet': '',
 }
 
@@ -21,6 +21,7 @@ MODEL_DICT = {
     'alexnet': AlexNet,
     'resnet18': resnet18,
     'resnet18_fc_ma': resnet18_fc_ma,
+    'resnet18_fc_ms': resnet18_fc_ms,
 }
 
 p = print

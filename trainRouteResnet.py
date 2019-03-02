@@ -7,9 +7,10 @@ from util.common import *
 from loader.data_loader import places365_imagenet_loader
 
 parser = argparse.ArgumentParser(description='PyTorch')
-parser.add_argument('--arch', default='resnet18_fc_ma', type=str, help='arch')
+parser.add_argument('--arch', default='resnet18_fc_ms', type=str, help='arch')
 parser.add_argument('--dataset', default='places365', type=str, help='dataset')
 parser.add_argument('--mark', default='nm', type=str, help='mark')
+parser.add_argument('--test_mode', default=True, type=bool, help='test')
 
 args = parser.parse_args()
 
@@ -21,13 +22,17 @@ settings = edict.EasyDict({
     "DATASET" : args.dataset,
     "DATASET_PATH" : DATASET_PATH[args.dataset],
     "NUM_CLASSES" : NUM_CLASSES[args.dataset],
-    "MODEL_FILE" : 'result/pytorch_resnet18_fc_ma_nm_places365/snapshot/epoch_0.pth',
+    "MODEL_FILE" : None,
     "WORKERS" : 16,
     "BATCH_SIZE" : 192,
     "PRINT_FEQ" : 10,
     "LR" : 0.1,
     "EPOCHS" : 90,
 })
+if args.test_mode:
+    settings.GPU = False
+    settings.BATCH_SIZE = 2
+    settings.WORKERS = 2
 
 torch.manual_seed(0)
 
@@ -45,9 +50,13 @@ print = log_f(log_file)
 
 
 def train_resnet(model, train_loader, val_loader, dir=None):
-    check_point = torch.load(settings.MODEL_FILE)
-    model.load_state_dict(check_point['state_dict'])
-    epoch_cur = check_point['epoch']
+    if settings.MODEL_FILE is not None:
+        check_point = torch.load(settings.MODEL_FILE)
+        model.load_state_dict(check_point['state_dict'])
+        epoch_cur = check_point['epoch']
+    else:
+        epoch_cur = 0
+
     if settings.GPU:
         criterion = nn.CrossEntropyLoss().cuda()
     else:
@@ -184,16 +193,20 @@ def main():
     # layer = 'pool5'
 
     val_loader = places365_imagenet_loader(settings, 'val')
-    train_loader = places365_imagenet_loader(settings, 'train', shuffle=True, data_augment=True)
+    if args.test_mode:
+        train_loader = val_loader
+    else:
+        train_loader = places365_imagenet_loader(settings, 'train', shuffle=True, data_augment=True)
     # test_loader = places365_imagenet_loader('test200')
 
 
     # model = finetune_model
-    model = settings.CNN_MODEL(pretrained=False, num_classes=settings.NUM_CLASSES)
+    model = settings.CNN_MODEL(pretrained=True, num_classes=settings.NUM_CLASSES)
     p(model)
     if settings.GPU:
         model.cuda()
     model.train()
+
     train_resnet(model, train_loader, val_loader, snapshot_dir)
     # val_resnet(model, val_loader, snapshot_dir)
 
