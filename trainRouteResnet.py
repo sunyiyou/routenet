@@ -55,7 +55,7 @@ def train_resnet(model, train_loader, val_loader, dir=None):
         model.load_state_dict(check_point['state_dict'])
         epoch_cur = check_point['epoch']
     else:
-        epoch_cur = 0
+        epoch_cur = -1
 
     if settings.GPU:
         criterion = nn.CrossEntropyLoss().cuda()
@@ -202,7 +202,7 @@ def main():
 
     # model = finetune_model
     model = settings.CNN_MODEL(pretrained=True, num_classes=settings.NUM_CLASSES)
-    p(model)
+    # p(model)
     if settings.GPU:
         model.cuda()
     model.train()

@@ -3,9 +3,7 @@ import math
 import torch.utils.model_zoo as model_zoo
 from models.route import *
 
-__all__ = ['ResNet', 'resnet18', 'resnet18_fc_ma', 'resnet18_fc_ms',
-           'resnet34', 'resnet50', 'resnet101',
-           'resnet152']
+__all__ = ['ResNet', 'resnet18', 'resnet18_fc_ma', 'resnet18_fc_ms',]
 
 
 model_urls = {
@@ -191,7 +189,6 @@ class ResNet(AbstractResNet):
         self.fc = nn.Linear(512 * block.expansion, num_classes)
         self._initial_weight()
 
-
 #final fc route by max activation
 class ResNetFcMaxAct(AbstractResNet):
 
@@ -214,13 +211,7 @@ class ResNetFcMeanShrink(AbstractResNet):
         return x
 
 
-
 def resnet18(pretrained=False, **kwargs):
-    """Constructs a ResNet-18 model.
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    """
     model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
@@ -246,49 +237,49 @@ def resnet18_fc_ms(pretrained=False, **kwargs):
     return model
 
 
-def resnet34(pretrained=False, **kwargs):
-    """Constructs a ResNet-34 model.
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    """
-    model = ResNet(BasicBlock, [3, 4, 6, 3], **kwargs)
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
-    return model
 
 
-def resnet50(pretrained=False, **kwargs):
-    """Constructs a ResNet-50 model.
 
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    """
-    model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
-    return model
+class ResNetCifar(AbstractResNet):
+    def __init__(self, block, layers, num_classes=10):
+        super(ResNetCifar, self).__init__(block, layers, num_classes)
+        self.in_planes = 64
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self._initial_weight()
 
-
-def resnet101(pretrained=False, **kwargs):
-    """Constructs a ResNet-101 model.
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    """
-    model = ResNet(Bottleneck, [3, 4, 23, 3], **kwargs)
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet101']))
-    return model
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = self.layer4(out)
+        out = F.avg_pool2d(out, 4)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
 
 
-def resnet152(pretrained=False, **kwargs):
-    """Constructs a ResNet-152 model.
+class ResNetCifarMeanShift(AbstractResNet):
+    def __init__(self, block, layers, num_classes=10):
+        super(ResNetCifarMeanShift, self).__init__(block, layers, num_classes)
+        self.in_planes = 64
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.fc = RouteFcMeanShrink(512 * block.expansion, num_classes)
+        self._initial_weight()
 
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    """
-    model = ResNet(Bottleneck, [3, 8, 36, 3], **kwargs)
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
-    return model
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = self.layer4(out)
+        out = self.fc(out)
+        return out
+
+
+def resnet18_cifar():
+    return ResNetCifar(BasicBlock, [2,2,2,2])
+
+def resnet18_fc_ms_cifar():
+    return ResNetCifarMeanShift(BasicBlock, [2,2,2,2])
