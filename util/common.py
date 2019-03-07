@@ -9,7 +9,7 @@ from models.resnet import *
 import sys
 
 DATASET_PATH = {
-    'places365': '/home/yiyousun/dataset/places365_standard',
+    'places365': '/home/sunyiyou/dataset/places365_standard',
     'imagenet': '',
 }
 

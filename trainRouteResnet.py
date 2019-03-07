@@ -25,7 +25,7 @@ settings = edict.EasyDict({
     # "MODEL_FILE" : 'result/pytorch_resnet18_fc_ma_nm_places365/snapshot/epoch_51.pth',
     "MODEL_FILE" : None,#'zoo/resnet18_places365.pth.tar',
     "WORKERS" : 16,
-    "BATCH_SIZE" : 32,
+    "BATCH_SIZE" : 192,
     "PRINT_FEQ" : 10,
     "LR" : 0.1,
     "EPOCHS" : 90,

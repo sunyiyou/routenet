@@ -239,7 +239,7 @@ def resnet18_fc_ma(pretrained=False, **kwargs):
     return model
 
 def resnet18_fc_ms(pretrained=False, **kwargs):
-    model = ResNetCifarMeanShift(BasicBlock, [2, 2, 2, 2], **kwargs)
+    model = ResNetFcMeanShift(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet18']), strict=False)
     return model
