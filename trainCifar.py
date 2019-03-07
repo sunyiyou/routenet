@@ -20,7 +20,7 @@ parser.add_argument('--arch', default='resnet18', type=str, help='arch')
 
 args = parser.parse_args()
 
-net = resnet18_fc_ma_cifar()
+net = resnet18_fc_ms_cifar()
 print(net)
 print('==> Building model..')
 

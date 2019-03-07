@@ -14,6 +14,42 @@ class RouteFcMaxAct(nn.Linear):
         vote = input[:, None, :] * self.weight
         return vote.topk(self.topk, 2)[0].sum(2)
 
+class RouteFcMeanShift(nn.Linear):
+
+    def __init__(self, in_features, out_features, bias=True, seed=1, iters=3):
+        super(RouteFcMeanShift, self).__init__(in_features, out_features, bias)
+        self.seed = seed
+        self.iters = iters
+        self.delta = nn.Parameter(torch.Tensor(out_features))
+        self.delta.data.fill_(18)
+
+
+    def forward(self, input):
+        b, c, w, h = input.shape
+        o, c = self.weight.shape
+
+        feats = input.view(b,c,w*h)
+        feats_norm = feats.norm(dim=2)  # b, c
+        feats_normalized = feats / (feats_norm[:, :, None] + 1e-15)  # b, c, w*h
+        feat_weight = feats_norm / feats_norm.max(1)[0][:, None] #b, c
+        inds = (feat_weight[:,None,:] * self.weight).topk(self.seed, dim=2)[1]# b, o, seed
+
+        X = feats_normalized.gather(1, inds.expand(b,o,w*h)) #b, o, w*h
+        for i in range(self.iters):
+            K = torch.exp(self.delta[None,:,None] * X.matmul(feats_normalized.transpose(2,1))) \
+                        / torch.exp(self.delta[None,:,None]) # b, o, c
+            K_weighted = K * (feat_weight[:, None, :] * self.weight[None, :, :]) # b, o, c
+            X = K_weighted.matmul(feats_normalized) #b, o, w*h
+            X = X / (X.norm(dim=2)[:, :, None] + 1e-15)
+
+        K = torch.exp(self.delta[None, :, None] * X.matmul(feats_normalized.transpose(2, 1))) \
+            / torch.exp(self.delta[None, :, None])  # b, o, c
+        K_weighted = K * (feat_weight[:, None, :] * self.weight[None, :, :])  # b, o, c
+
+        out = K_weighted.sum(2)
+
+        return out
+
 
 class RouteFcMeanShrink(nn.Linear):
 
@@ -44,7 +80,12 @@ class RouteFcMeanShrink(nn.Linear):
 
 
 if __name__ == '__main__':
-    model = RouteFcMeanShrink(8, 1, shrink_rate=2)
-    model.weight.data = torch.tensor([1,1,2,2,3,3,4,4]).float().view(1, 8) / 20.
-    input = torch.randint(0,5,(1,8,2,1)).float()
+    # model = RouteFcMeanShrink(8, 1, shrink_rate=2)
+    # model.weight.data = torch.tensor([1,1,2,2,3,3,4,4]).float().view(1, 8) / 20.
+    # input = torch.randint(0,5,(1,8,2,1)).float()
+    # model(input)
+
+    model = RouteFcMeanShift(5, 2)
+    model.weight.data = torch.tensor([[1, 2, 3, 4, 5],[5, 4, 3, 2, 1]]).float()
+    input = torch.randint(0, 5, (1, 5, 2, 2)).float()
     model(input)

@@ -7,7 +7,7 @@ from util.common import *
 from loader.data_loader import places365_imagenet_loader
 
 parser = argparse.ArgumentParser(description='PyTorch')
-parser.add_argument('--arch', default='resnet18_fc_ma', type=str, help='arch')
+parser.add_argument('--arch', default='resnet18_fc_ms', type=str, help='arch')
 parser.add_argument('--dataset', default='places365', type=str, help='dataset')
 parser.add_argument('--mark', default='nm', type=str, help='mark')
 parser.add_argument('--test_mode', default=False, type=bool, help='test')
@@ -22,12 +22,12 @@ settings = edict.EasyDict({
     "DATASET" : args.dataset,
     "DATASET_PATH" : DATASET_PATH[args.dataset],
     "NUM_CLASSES" : NUM_CLASSES[args.dataset],
-    "MODEL_FILE" : 'result/pytorch_resnet18_fc_ma_nm_places365/snapshot/epoch_51.pth',
-    # "MODEL_FILE" : 'zoo/resnet18_places365.pth.tar',
+    # "MODEL_FILE" : 'result/pytorch_resnet18_fc_ma_nm_places365/snapshot/epoch_51.pth',
+    "MODEL_FILE" : None,#'zoo/resnet18_places365.pth.tar',
     "WORKERS" : 16,
     "BATCH_SIZE" : 192,
     "PRINT_FEQ" : 10,
-    "LR" : 0.010,
+    "LR" : 0.1,
     "EPOCHS" : 90,
 })
 if args.test_mode:
@@ -213,8 +213,8 @@ def main():
         model.cuda()
     model.train()
 
-    # train_resnet(model, train_loader, val_loader, snapshot_dir)
-    val_resnet(model, val_loader)
+    train_resnet(model, train_loader, val_loader, snapshot_dir)
+    # val_resnet(model, val_loader)
 
 
 
