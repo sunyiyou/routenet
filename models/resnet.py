@@ -206,11 +206,11 @@ class ResNetFcMaxAct(AbstractResNet):
         return x
 
 #final fc route by max activation
-class ResNetFcMeanShrink(AbstractResNet):
+class ResNetFcMeanShift(AbstractResNet):
 
     def __init__(self, block, layers, num_classes=1000):
-        super(ResNetFcMeanShrink, self).__init__(block, layers, num_classes)
-        self.fc = RouteFcMeanShrink(512 * block.expansion, num_classes)
+        super(ResNetFcMeanShift, self).__init__(block, layers, num_classes)
+        self.fc = RouteFcMeanShift(512 * block.expansion, num_classes)
         self._initial_weight()
 
     def forward(self, x):
@@ -239,7 +239,7 @@ def resnet18_fc_ma(pretrained=False, **kwargs):
     return model
 
 def resnet18_fc_ms(pretrained=False, **kwargs):
-    model = ResNetFcMeanShrink(BasicBlock, [2, 2, 2, 2], **kwargs)
+    model = ResNetCifarMeanShift(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet18']), strict=False)
     return model

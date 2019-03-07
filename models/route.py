@@ -50,33 +50,33 @@ class RouteFcMeanShift(nn.Linear):
 
         return out
 
-
-class RouteFcMeanShrink(nn.Linear):
-
-    def __init__(self, in_features, out_features, bias=True, shrink_rate=4):
-        super(RouteFcMeanShrink, self).__init__(in_features, out_features, bias)
-        self.shrink_rate = shrink_rate
-
-    def forward(self, input):
-        b, c, w, h = input.shape
-        o, c = self.weight.shape
-        s = c
-
-        s = int(s/self.shrink_rate)
-        vote = input.view(b, 1, c, w * h) * self.weight.view(1, o, c, 1)
-        distance = torch.abs(vote - vote.mean(2, keepdim=True)).mean(3)
-        ind = distance.topk(s, dim=2, largest=False, sorted=True)[1]
-        ind = ind.unsqueeze(3).expand(b, o, s, w * h)
-
-        s = int(s/self.shrink_rate)
-        vote2 = vote.gather(2, ind)
-        distance2 = torch.abs(vote2 - vote2.mean(2, keepdim=True)).mean(3)
-        ind = distance2.topk(s, dim=2, largest=False, sorted=True)[1]
-        ind = ind.unsqueeze(3).expand(b, o, s, w * h)
-
-        out = vote2.gather(2, ind).view(b, o, s * w * h).mean(2)
-
-        return out
+#
+# class RouteFcMeanShrink(nn.Linear):
+#
+#     def __init__(self, in_features, out_features, bias=True, shrink_rate=4):
+#         super(RouteFcMeanShrink, self).__init__(in_features, out_features, bias)
+#         self.shrink_rate = shrink_rate
+#
+#     def forward(self, input):
+#         b, c, w, h = input.shape
+#         o, c = self.weight.shape
+#         s = c
+#
+#         s = int(s/self.shrink_rate)
+#         vote = input.view(b, 1, c, w * h) * self.weight.view(1, o, c, 1)
+#         distance = torch.abs(vote - vote.mean(2, keepdim=True)).mean(3)
+#         ind = distance.topk(s, dim=2, largest=False, sorted=True)[1]
+#         ind = ind.unsqueeze(3).expand(b, o, s, w * h)
+#
+#         s = int(s/self.shrink_rate)
+#         vote2 = vote.gather(2, ind)
+#         distance2 = torch.abs(vote2 - vote2.mean(2, keepdim=True)).mean(3)
+#         ind = distance2.topk(s, dim=2, largest=False, sorted=True)[1]
+#         ind = ind.unsqueeze(3).expand(b, o, s, w * h)
+#
+#         out = vote2.gather(2, ind).view(b, o, s * w * h).mean(2)
+#
+#         return out
 
 
 if __name__ == '__main__':
