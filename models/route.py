@@ -16,12 +16,12 @@ class RouteFcMaxAct(nn.Linear):
 
 class RouteFcMeanShift(nn.Linear):
 
-    def __init__(self, in_features, out_features, bias=True, seed=1, iters=3):
+    def __init__(self, in_features, out_features, bias=True, seed=1, iters=3, delta=25):
         super(RouteFcMeanShift, self).__init__(in_features, out_features, bias)
         self.seed = seed
         self.iters = iters
-        self.delta = nn.Parameter(torch.Tensor(out_features))
-        self.delta.data.fill_(18)
+        self.delta = delta#nn.Parameter(torch.Tensor(out_features))
+        # self.delta.data.fill_(18)
 
 
     def forward(self, input):
@@ -36,14 +36,12 @@ class RouteFcMeanShift(nn.Linear):
 
         X = feats_normalized.gather(1, inds.expand(b,o,w*h)) #b, o, w*h
         for i in range(self.iters):
-            K = torch.exp(self.delta[None,:,None] * X.matmul(feats_normalized.transpose(2,1))) \
-                        / torch.exp(self.delta[None,:,None]) # b, o, c
+            K = torch.exp(self.delta * (X.matmul(feats_normalized.transpose(2,1)) - 1))  # b, o, c
             K_weighted = K * (feat_weight[:, None, :] * self.weight[None, :, :]) # b, o, c
             X = K_weighted.matmul(feats_normalized) #b, o, w*h
             X = X / (X.norm(dim=2)[:, :, None] + 1e-15)
 
-        K = torch.exp(self.delta[None, :, None] * X.matmul(feats_normalized.transpose(2, 1))) \
-            / torch.exp(self.delta[None, :, None])  # b, o, c
+        K = torch.exp(self.delta * (X.matmul(feats_normalized.transpose(2,1)) - 1))  # b, o, c
         K_weighted = K * (feat_weight[:, None, :] * self.weight[None, :, :])  # b, o, c
 
         out = K_weighted.sum(2)
