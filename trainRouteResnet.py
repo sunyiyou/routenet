@@ -7,10 +7,10 @@ from util.common import *
 from loader.data_loader import places365_imagenet_loader
 
 parser = argparse.ArgumentParser(description='PyTorch')
-parser.add_argument('--arch', default='resnet18_fc_ms', type=str, help='arch')
+parser.add_argument('--arch', default='resnet18_fc_ma', type=str, help='arch')
 parser.add_argument('--dataset', default='places365', type=str, help='dataset')
 parser.add_argument('--mark', default='nm', type=str, help='mark')
-parser.add_argument('--test_mode', default=True, type=bool, help='test')
+parser.add_argument('--test_mode', default=False, type=bool, help='test')
 
 args = parser.parse_args()
 
@@ -22,11 +22,12 @@ settings = edict.EasyDict({
     "DATASET" : args.dataset,
     "DATASET_PATH" : DATASET_PATH[args.dataset],
     "NUM_CLASSES" : NUM_CLASSES[args.dataset],
-    "MODEL_FILE" : None,
+    "MODEL_FILE" : 'result/pytorch_resnet18_fc_ma_nm_places365/snapshot/epoch_51.pth',
+    # "MODEL_FILE" : 'zoo/resnet18_places365.pth.tar',
     "WORKERS" : 16,
     "BATCH_SIZE" : 192,
     "PRINT_FEQ" : 10,
-    "LR" : 0.1,
+    "LR" : 0.010,
     "EPOCHS" : 90,
 })
 if args.test_mode:
@@ -52,7 +53,8 @@ print = log_f(log_file)
 def train_resnet(model, train_loader, val_loader, dir=None):
     if settings.MODEL_FILE is not None:
         check_point = torch.load(settings.MODEL_FILE)
-        model.load_state_dict(check_point['state_dict'])
+        state_dict = check_point['state_dict']
+        model.load_state_dict(state_dict)
         epoch_cur = check_point['epoch']
     else:
         epoch_cur = -1
@@ -71,6 +73,7 @@ def train_resnet(model, train_loader, val_loader, dir=None):
             param_group['lr'] = lr
 
     for epoch in range(epoch_cur+1, settings.EPOCHS):
+        adjust_learning_rate(optimizer, epoch)
 
         print('Epoch[%d/%d]' % (epoch, settings.EPOCHS))
         # train
@@ -137,11 +140,14 @@ def train_resnet(model, train_loader, val_loader, dir=None):
             'state_dict': model.state_dict(),
         }, os.path.join(dir, 'epoch_%d.pth' % epoch))
 
-        adjust_learning_rate(optimizer, epoch)
 
 
 def val_resnet(model, val_loader):
-
+    if settings.MODEL_FILE is not None:
+        check_point = torch.load(settings.MODEL_FILE)
+        state_dict = {str.replace(k, 'module.', ''): v for k, v in check_point[
+            'state_dict'].items()}
+        model.load_state_dict(state_dict)
     if settings.GPU:
         criterion = nn.CrossEntropyLoss().cuda()
     else:
@@ -201,14 +207,14 @@ def main():
 
 
     # model = finetune_model
-    model = settings.CNN_MODEL(pretrained=True, num_classes=settings.NUM_CLASSES)
+    model = settings.CNN_MODEL(pretrained=False, num_classes=settings.NUM_CLASSES)
     # p(model)
     if settings.GPU:
         model.cuda()
     model.train()
 
-    train_resnet(model, train_loader, val_loader, snapshot_dir)
-    # val_resnet(model, val_loader, snapshot_dir)
+    # train_resnet(model, train_loader, val_loader, snapshot_dir)
+    val_resnet(model, val_loader)
 
 
 

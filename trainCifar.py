@@ -9,7 +9,7 @@ import torchvision
 import torchvision.transforms as transforms
 
 from util.common import progress_bar
-from models.resnet import resnet18_cifar, resnet18_fc_ms_cifar
+from models.resnet import resnet18_cifar, resnet18_fc_ms_cifar, resnet18_fc_ma_cifar
 
 
 parser = argparse.ArgumentParser(description='PyTorch')
@@ -20,7 +20,7 @@ parser.add_argument('--arch', default='resnet18', type=str, help='arch')
 
 args = parser.parse_args()
 
-net = resnet18_fc_ms_cifar()
+net = resnet18_fc_ma_cifar()
 print(net)
 print('==> Building model..')
 
@@ -90,6 +90,13 @@ net = net.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
+
+def adjust_learning_rate(optimizer, epoch):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    lr = args.lr * (0.1 ** (epoch // 100))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -148,6 +155,7 @@ def test(epoch):
         best_acc = acc
 
 
-for epoch in range(start_epoch, start_epoch+200):
+for epoch in range(start_epoch, start_epoch+300):
     train(epoch)
     test(epoch)
+    adjust_learning_rate(optimizer, epoch)

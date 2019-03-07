@@ -12,12 +12,12 @@ class RouteFcMaxAct(nn.Linear):
 
     def forward(self, input):
         vote = input[:, None, :] * self.weight
-        return vote.topk(10, 2)[0].sum(2)
+        return vote.topk(self.topk, 2)[0].sum(2)
 
 
 class RouteFcMeanShrink(nn.Linear):
 
-    def __init__(self, in_features, out_features, bias=True, shrink_rate=8):
+    def __init__(self, in_features, out_features, bias=True, shrink_rate=4):
         super(RouteFcMeanShrink, self).__init__(in_features, out_features, bias)
         self.shrink_rate = shrink_rate
 

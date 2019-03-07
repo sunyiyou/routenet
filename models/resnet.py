@@ -194,8 +194,16 @@ class ResNetFcMaxAct(AbstractResNet):
 
     def __init__(self, block, layers, num_classes=1000):
         super(ResNetFcMaxAct, self).__init__(block, layers, num_classes)
-        self.fc = RouteFcMaxAct(512 * block.expansion, num_classes)
+        self.rfc = RouteFcMaxAct(512 * block.expansion, num_classes)
         self._initial_weight()
+
+    def forward(self, x):
+        x = self.features(x)
+
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.rfc(x)
+        return x
 
 #final fc route by max activation
 class ResNetFcMeanShrink(AbstractResNet):
@@ -278,8 +286,31 @@ class ResNetCifarMeanShift(AbstractResNet):
         return out
 
 
+class ResNetCifarMaxAct(AbstractResNet):
+    def __init__(self, block, layers, num_classes=10):
+        super(ResNetCifarMaxAct, self).__init__(block, layers, num_classes)
+        self.in_planes = 64
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.fc = RouteFcMaxAct(512 * block.expansion, num_classes)
+        self._initial_weight()
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = self.layer4(out)
+        out = F.avg_pool2d(out, 4)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
+
+
 def resnet18_cifar():
     return ResNetCifar(BasicBlock, [2,2,2,2])
 
 def resnet18_fc_ms_cifar():
     return ResNetCifarMeanShift(BasicBlock, [2,2,2,2])
+
+def resnet18_fc_ma_cifar():
+    return ResNetCifarMaxAct(BasicBlock, [2,2,2,2])
