@@ -12,11 +12,34 @@ class RouteFcMaxAct(nn.Linear):
 
     def forward(self, input):
         vote = input[:, None, :] * self.weight
-        return vote.topk(self.topk, 2)[0].sum(2)
+        if self.bias is not None:
+            out = vote.topk(self.topk, 2)[0].sum(2) + self.bias
+        else:
+            out = vote.topk(self.topk, 2)[0].sum(2)
+        return out
+
+class RouteFcCondAct(nn.Linear):
+
+    def __init__(self, in_features, out_features, bias=True, topk_scale=5):
+        super(RouteFcCondAct, self).__init__(in_features, out_features, bias)
+        self.topk = topk_scale * out_features
+
+    def forward(self, input):
+        vote = input[:, None, :] * self.weight
+        b, o, c = vote.shape
+
+        inds = vote.view(b, -1).topk(self.topk, 1)[1]
+        mask = torch.zeros(b, o * c).cuda().scatter(1, inds, 1.).view(b, o, c)
+        if self.bias is not None:
+            out = (vote * mask).sum(2) + self.bias
+        else:
+            out = (vote * mask).sum(2)
+
+        return out
 
 class RouteFcMeanShift(nn.Linear):
 
-    def __init__(self, in_features, out_features, bias=True, seed=1, iters=3, delta=25):
+    def __init__(self, in_features, out_features, bias=True, seed=1, iters=3, delta=50):
         super(RouteFcMeanShift, self).__init__(in_features, out_features, bias)
         self.seed = seed
         self.iters = iters
@@ -28,25 +51,86 @@ class RouteFcMeanShift(nn.Linear):
         b, c, w, h = input.shape
         o, c = self.weight.shape
 
+        fc_weight = self.weight #/ (self.weight.norm(dim=1, keepdim=True) + 1e-15)
+
         feats = input.view(b,c,w*h)
         feats_norm = feats.norm(dim=2)  # b, c
         feats_normalized = feats / (feats_norm[:, :, None] + 1e-15)  # b, c, w*h
         feat_weight = feats_norm / feats_norm.max(1)[0][:, None] #b, c
-        inds = (feat_weight[:,None,:] * self.weight).topk(self.seed, dim=2)[1]# b, o, seed
+        inds = (feat_weight[:,None,:] * fc_weight).topk(self.seed, dim=2)[1]# b, o, seed
 
         X = feats_normalized.gather(1, inds.expand(b,o,w*h)) #b, o, w*h
         for i in range(self.iters):
             K = torch.exp(self.delta * (X.matmul(feats_normalized.transpose(2,1)) - 1))  # b, o, c
-            K_weighted = K * (feat_weight[:, None, :] * self.weight[None, :, :]) # b, o, c
+            K_weighted = K * (feat_weight[:, None, :] * fc_weight[None, :, :]) # b, o, c
             X = K_weighted.matmul(feats_normalized) #b, o, w*h
             X = X / (X.norm(dim=2)[:, :, None] + 1e-15)
 
         K = torch.exp(self.delta * (X.matmul(feats_normalized.transpose(2,1)) - 1))  # b, o, c
-        K_weighted = K * (feat_weight[:, None, :] * self.weight[None, :, :])  # b, o, c
+        K_weighted = K.data * (feat_weight[:, None, :] * fc_weight[None, :, :])  # b, o, c
 
-        out = K_weighted.sum(2)
+        if self.bias is not None:
+            out = K_weighted.sum(2) + self.bias
+        else:
+            out = K_weighted.sum(2)
 
         return out
+
+class CG(torch.optim.Optimizer):
+
+    def __init__(self, params, lr=0.1, momentum=0, dampening=0,
+                 weight_decay=0, nesterov=False):
+        if momentum < 0.0:
+            raise ValueError("Invalid momentum value: {}".format(momentum))
+        if weight_decay < 0.0:
+            raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
+
+        defaults = dict(lr=lr, momentum=momentum, dampening=dampening,
+                        weight_decay=weight_decay, nesterov=nesterov)
+        if nesterov and (momentum <= 0 or dampening != 0):
+            raise ValueError("Nesterov momentum requires a momentum and zero dampening")
+        super(CG, self).__init__(params, defaults)
+
+    def __setstate__(self, state):
+        super(CG, self).__setstate__(state)
+        for group in self.param_groups:
+            group.setdefault('nesterov', False)
+
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            loss = closure()
+
+        for group in self.param_groups:
+            weight_decay = group['weight_decay']
+            momentum = group['momentum']
+            dampening = group['dampening']
+            nesterov = group['nesterov']
+
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                d_p = p.grad.data
+                if weight_decay != 0:
+                    d_p.add_(weight_decay, p.data)
+
+                if momentum != 0:
+                    param_state = self.state[p]
+                    if 'momentum_buffer' not in param_state:
+                        buf = param_state['momentum_buffer'] = torch.zeros_like(p.data)
+                        buf.mul_(momentum).add_(d_p)
+                    else:
+                        buf = param_state['momentum_buffer']
+                        buf.mul_(momentum).add_(1 - dampening, d_p)
+                    if nesterov:
+                        d_p = d_p.add(momentum, buf)
+                    else:
+                        d_p = buf
+
+                p.data.add_(-group['lr'], d_p)
+
+        return loss
+
 
 #
 # class RouteFcMeanShrink(nn.Linear):

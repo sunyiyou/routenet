@@ -3,7 +3,8 @@ import math
 import torch.utils.model_zoo as model_zoo
 from models.route import *
 
-__all__ = ['ResNet', 'resnet18', 'resnet18_fc_ma', 'resnet18_fc_ms',]
+__all__ = ['ResNet', 'resnet18', 'resnet18_fc_ma', 'resnet18_fc_ms',
+           'resnet50', 'resnet50_fc_ma', 'resnet50_fc_ms']
 
 
 model_urls = {
@@ -225,13 +226,6 @@ def resnet18(pretrained=False, **kwargs):
         model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
     return model
 
-# layer_ind = list(model._modules).index(layer)
-# model_p1 = nn.Sequential(*list(model.children())[:layer_ind+1])
-# if settings.CNN_MODEL.startswith('resnet'):
-#     from loader.caffe_model import FCView
-#     model_p = list(model.children())
-#     model_p2 = nn.Sequential(*(model_p[layer_ind+1:-1] + [FCView(), model_p[-1]]))
-
 def resnet18_fc_ma(pretrained=False, **kwargs):
     model = ResNetFcMaxAct(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
@@ -242,6 +236,25 @@ def resnet18_fc_ms(pretrained=False, **kwargs):
     model = ResNetFcMeanShift(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet18']), strict=False)
+    return model
+
+
+def resnet50(pretrained=False, **kwargs):
+    model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
+    return model
+
+def resnet50_fc_ma(pretrained=False, **kwargs):
+    model = ResNetFcMaxAct(Bottleneck, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet50']), strict=False)
+    return model
+
+def resnet50_fc_ms(pretrained=False, **kwargs):
+    model = ResNetFcMeanShift(Bottleneck, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet50']), strict=False)
     return model
 
 
@@ -306,6 +319,26 @@ class ResNetCifarMaxAct(AbstractResNet):
         return out
 
 
+class ResNetCifarCondAct(AbstractResNet):
+    def __init__(self, block, layers, num_classes=10):
+        super(ResNetCifarCondAct, self).__init__(block, layers, num_classes)
+        self.in_planes = 64
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.fc = RouteFcCondAct(512 * block.expansion, num_classes)
+        self._initial_weight()
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = self.layer4(out)
+        out = F.avg_pool2d(out, 4)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
+
+
 def resnet18_cifar():
     return ResNetCifar(BasicBlock, [2,2,2,2])
 
@@ -314,3 +347,6 @@ def resnet18_fc_ms_cifar():
 
 def resnet18_fc_ma_cifar():
     return ResNetCifarMaxAct(BasicBlock, [2,2,2,2])
+
+def resnet18_fc_ca_cifar():
+    return ResNetCifarCondAct(BasicBlock, [2,2,2,2])

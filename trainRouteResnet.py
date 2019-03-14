@@ -7,8 +7,8 @@ from util.common import *
 from loader.data_loader import places365_imagenet_loader
 
 parser = argparse.ArgumentParser(description='PyTorch')
-parser.add_argument('--arch', default='resnet18_fc_ms', type=str, help='arch')
-parser.add_argument('--dataset', default='places365', type=str, help='dataset')
+parser.add_argument('--arch', default='resnet50_fc_ma', type=str, help='arch')
+parser.add_argument('--dataset', default='imagenet', type=str, help='dataset')
 parser.add_argument('--mark', default='nm', type=str, help='mark')
 parser.add_argument('--test_mode', default=False, type=bool, help='test')
 
@@ -22,12 +22,13 @@ settings = edict.EasyDict({
     "DATASET" : args.dataset,
     "DATASET_PATH" : DATASET_PATH[args.dataset],
     "NUM_CLASSES" : NUM_CLASSES[args.dataset],
-    # "MODEL_FILE" : 'result/pytorch_resnet18_fc_ma_nm_places365/snapshot/epoch_51.pth',
-    "MODEL_FILE" : None,#'zoo/resnet18_places365.pth.tar',
+    # "MODEL_FILE" : 'result/pytorch_resnet18_fc_ms_nm_places365/snapshot/epoch_62.pth',
+    "MODEL_FILE" : 'result/pytorch_resnet50_fc_ma_nm_imagenet/snapshot/epoch_20.pth',
+    "FINETUNE": False,
     "WORKERS" : 16,
-    "BATCH_SIZE" : 192,
+    "BATCH_SIZE" : 64,
     "PRINT_FEQ" : 10,
-    "LR" : 0.1,
+    "LR" : 0.01,
     "EPOCHS" : 90,
 })
 if args.test_mode:
@@ -51,6 +52,7 @@ print = log_f(log_file)
 
 
 def train_resnet(model, train_loader, val_loader, dir=None):
+
     if settings.MODEL_FILE is not None:
         check_point = torch.load(settings.MODEL_FILE)
         state_dict = check_point['state_dict']
@@ -68,7 +70,7 @@ def train_resnet(model, train_loader, val_loader, dir=None):
 
     def adjust_learning_rate(optimizer, epoch):
         """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-        lr = settings.LR * (0.1 ** (epoch // 30))
+        lr = settings.LR * (0.1 ** (epoch // 10))
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
@@ -207,14 +209,14 @@ def main():
 
 
     # model = finetune_model
-    model = settings.CNN_MODEL(pretrained=False, num_classes=settings.NUM_CLASSES)
+    model = settings.CNN_MODEL(pretrained=settings.FINETUNE, num_classes=settings.NUM_CLASSES)
     # p(model)
     if settings.GPU:
         model.cuda()
     model.train()
 
-    train_resnet(model, train_loader, val_loader, snapshot_dir)
-    # val_resnet(model, val_loader)
+    # train_resnet(model, train_loader, val_loader, snapshot_dir)
+    val_resnet(model, val_loader)
 
 
 

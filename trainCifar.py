@@ -9,8 +9,8 @@ import torchvision
 import torchvision.transforms as transforms
 
 from util.common import progress_bar
-from models.resnet import resnet18_cifar, resnet18_fc_ms_cifar, resnet18_fc_ma_cifar
-
+from models.resnet import resnet18_cifar, resnet18_fc_ms_cifar, resnet18_fc_ma_cifar, resnet18_fc_ca_cifar
+from models.route import CG
 
 parser = argparse.ArgumentParser(description='PyTorch')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -20,7 +20,7 @@ parser.add_argument('--arch', default='resnet18', type=str, help='arch')
 
 args = parser.parse_args()
 
-net = resnet18_fc_ms_cifar()
+net = resnet18_fc_ca_cifar()
 print(net)
 print('==> Building model..')
 
@@ -78,6 +78,7 @@ net = net.to(device)
 #     net = torch.nn.DataParallel(net)
 # checkpoint = torch.load('./checkpoint/ckpt.t7')
 # net.load_state_dict(checkpoint['net'])
+# start_epoch = 90
 # if args.resume:
 #     # Load checkpoint.
 #     print('==> Resuming from checkpoint..')
@@ -88,7 +89,9 @@ net = net.to(device)
 #     start_epoch = checkpoint['epoch']
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+optimizer = optim.SGD(nn.Sequential(*list(net.modules())[:-1]).parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+optimizer2 = CG(nn.Sequential(list(net.modules())[-1]).parameters(), lr=args.lr, momentum=0.9, weight_decay=1)
 
 
 def adjust_learning_rate(optimizer, epoch):
@@ -107,10 +110,13 @@ def train(epoch):
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
+        optimizer2.zero_grad()
+
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
+        optimizer2.step()
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
