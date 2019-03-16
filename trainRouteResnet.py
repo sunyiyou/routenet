@@ -9,7 +9,7 @@ from loader.data_loader import places365_imagenet_loader
 parser = argparse.ArgumentParser(description='PyTorch')
 parser.add_argument('--arch', default='resnet50_fc_ma', type=str, help='arch')
 parser.add_argument('--dataset', default='imagenet', type=str, help='dataset')
-parser.add_argument('--mark', default='nm', type=str, help='mark')
+parser.add_argument('--mark', default='t50', type=str, help='mark')
 parser.add_argument('--test_mode', default=False, type=bool, help='test')
 
 args = parser.parse_args()
@@ -23,8 +23,8 @@ settings = edict.EasyDict({
     "DATASET_PATH" : DATASET_PATH[args.dataset],
     "NUM_CLASSES" : NUM_CLASSES[args.dataset],
     # "MODEL_FILE" : 'result/pytorch_resnet18_fc_ms_nm_places365/snapshot/epoch_62.pth',
-    "MODEL_FILE" : 'result/pytorch_resnet50_fc_ma_nm_imagenet/snapshot/epoch_20.pth',
-    "FINETUNE": False,
+    "MODEL_FILE" : None,
+    "FINETUNE": True,
     "WORKERS" : 16,
     "BATCH_SIZE" : 64,
     "PRINT_FEQ" : 10,
@@ -215,8 +215,12 @@ def main():
         model.cuda()
     model.train()
 
-    # train_resnet(model, train_loader, val_loader, snapshot_dir)
-    val_resnet(model, val_loader)
+    train_resnet(model, train_loader, val_loader, snapshot_dir)
+    # for i in range(21,30):
+    #     settings.MODEL_FILE = 'result/pytorch_resnet50_fc_ma_nm_imagenet/snapshot/epoch_{}.pth'.format(i)
+    #     val_resnet(model, val_loader)
+
+    # val_resnet(model, val_loader)
 
 
 

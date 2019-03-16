@@ -6,7 +6,7 @@ import time
 
 class RouteFcMaxAct(nn.Linear):
 
-    def __init__(self, in_features, out_features, bias=True, topk=10):
+    def __init__(self, in_features, out_features, bias=True, topk=50):
         super(RouteFcMaxAct, self).__init__(in_features, out_features, bias)
         self.topk = topk
 
@@ -17,6 +17,22 @@ class RouteFcMaxAct(nn.Linear):
         else:
             out = vote.topk(self.topk, 2)[0].sum(2)
         return out
+
+# class RouteConvMaxAct(nn.Linear):
+#
+#     def __init__(self, in_features, out_features, bias=True, topk=10):
+#         super(RouteConvMaxAct, self).__init__(in_features, out_features, bias)
+#         self.topk = topk
+#
+#     def forward(self, input):
+#         b, c, w, h = input.shape
+#         avg_input = input.view(b, c, w*h).mean(2)
+#         vote = avg_input[:, None, :] * self.weight # b, o, c
+#         if self.bias is not None:
+#             out = vote.topk(self.topk, 2)[0].sum(2) + self.bias
+#         else:
+#             out = vote.topk(self.topk, 2)[0].sum(2)
+#         return out
 
 class RouteFcCondAct(nn.Linear):
 

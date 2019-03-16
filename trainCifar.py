@@ -89,9 +89,9 @@ net = net.to(device)
 #     start_epoch = checkpoint['epoch']
 
 criterion = nn.CrossEntropyLoss()
-# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-optimizer = optim.SGD(nn.Sequential(*list(net.modules())[:-1]).parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-optimizer2 = CG(nn.Sequential(list(net.modules())[-1]).parameters(), lr=args.lr, momentum=0.9, weight_decay=1)
+optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+# optimizer = optim.SGD(nn.Sequential(*list(net.modules())[:-1]).parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+# optimizer2 = CG(nn.Sequential(list(net.modules())[-1]).parameters(), lr=args.lr, momentum=0.9, weight_decay=1)
 
 
 def adjust_learning_rate(optimizer, epoch):
@@ -110,13 +110,13 @@ def train(epoch):
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
-        optimizer2.zero_grad()
+        # optimizer2.zero_grad()
 
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
-        optimizer2.step()
+        # optimizer2.step()
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
