@@ -265,7 +265,7 @@ class ResNetCifar(AbstractResNet):
     def __init__(self, block, layers, num_classes=10):
         super(ResNetCifar, self).__init__(block, layers, num_classes)
         self.in_planes = 64
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
         self._initial_weight()
 

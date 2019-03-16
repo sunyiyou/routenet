@@ -17,6 +17,7 @@ parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--dataset', '-d', default='mnist', type=str, help='dataset')
 parser.add_argument('--arch', default='resnet18', type=str, help='arch')
+parser.add_argument('--topk', default=5, type=int, help='topk')
 
 args = parser.parse_args()
 
@@ -80,17 +81,12 @@ net = net.to(device)
 # checkpoint = torch.load('./checkpoint/ckpt.t7')
 # net.load_state_dict(checkpoint['net'])
 # start_epoch = 90
-# if args.resume:
-#     # Load checkpoint.
-#     print('==> Resuming from checkpoint..')
-#     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-#     checkpoint = torch.load('./checkpoint/ckpt.t7')
-#     net.load_state_dict(checkpoint['net'])
-#     best_acc = checkpoint['acc']
-#     start_epoch = checkpoint['epoch']
+# best_acc = checkpoint['acc']
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+optimizer = optim.SGD(nn.Sequential(*list(net.modules())[:-1]).parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+optimizer2 = CG(nn.Sequential(list(net.modules())[-1]).parameters(), lr=args.lr, K=args.topk)
 
 
 def adjust_learning_rate(optimizer, epoch):
@@ -109,11 +105,13 @@ def train(epoch):
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
+        optimizer2.zero_grad()
 
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
+        optimizer2.step()
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
