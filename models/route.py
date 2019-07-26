@@ -6,7 +6,7 @@ import time
 
 class RouteFcMaxAct(nn.Linear):
 
-    def __init__(self, in_features, out_features, bias=True, topk=5):
+    def __init__(self, in_features, out_features, bias=True, topk=50):
         super(RouteFcMaxAct, self).__init__(in_features, out_features, bias)
         self.topk = topk
 

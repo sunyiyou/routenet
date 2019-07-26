@@ -10,7 +10,7 @@ import sys
 
 DATASET_PATH = {
     'places365': '/home/sunyiyou/dataset/places365_standard',
-    'imagenet': '',
+    'imagenet': '/home/sunyiyou/dataset/imagenet/',
 }
 
 NUM_CLASSES = {
