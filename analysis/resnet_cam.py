@@ -34,6 +34,22 @@ preprocess = transforms.Compose([
                  std=[0.229, 0.224, 0.225]
              )])
 
+def test0():
+    with torch.no_grad():
+        lucky_dog = np.random.choice(len(val_loader.dataset.imgs))
+        raw_img_path, target = val_loader.dataset.imgs[28329]
+        org_img = PIL.Image.open(raw_img_path)
+        img_tensor = preprocess(org_img)
+        input_var = torch.autograd.Variable(img_tensor.unsqueeze(0))
+        height, width = org_img.size
+        org_img = np.array(org_img)
+        fmap = mp1(input_var)
+        inds = fmap.view(512, 49).sum(1).sort(0, True)[1][:20]
+        imgs = [imagalize(fmap[0,i].numpy()) for i in inds]
+        vis_cams = [(0.3 * cv2.applyColorMap(imresize(img, (width, height)), cv2.COLORMAP_JET)[:, :, ::-1] + org_img * 0.5) for img in imgs]
+        vis_arr = [PIL.Image.fromarray(img.astype(np.uint8)) for img in vis_cams if type(img) == np.ndarray]
+        imsave('tmp/cam_{}.jpg'.format(lucky_dog), imconcat(vis_arr, margin=2))
+
 for i in range(5):
     with torch.no_grad():
         raw_img_path, target = val_loader.dataset.imgs[i]
@@ -45,7 +61,7 @@ for i in range(5):
 
         cams = CAM(fmap, model.fc.weight, [target])
         height, width = org_img.size
-        org_img = np.array(org_img)
+
         vis_cams = cv2.applyColorMap(imresize(cams[0], (width, height)), cv2.COLORMAP_JET)[:,:,::-1]
         vis_cams = vis_cams * 0.3 + org_img * 0.5
 

@@ -7,10 +7,11 @@ from util.common import *
 from loader.data_loader import places365_imagenet_loader
 
 parser = argparse.ArgumentParser(description='PyTorch')
-parser.add_argument('--arch', default='resnet50_fc_ma', type=str, help='arch')
+parser.add_argument('--arch', default='resnet18_fc_ma', type=str, help='arch')
 parser.add_argument('--dataset', default='imagenet', type=str, help='dataset')
 parser.add_argument('--mark', default='t50', type=str, help='mark')
 parser.add_argument('--test_mode', default=False, type=bool, help='test')
+#  * VAL Prec@1 73.298 Prec@5 91.754
 
 args = parser.parse_args()
 
@@ -22,14 +23,14 @@ settings = edict.EasyDict({
     "DATASET" : args.dataset,
     "DATASET_PATH" : DATASET_PATH[args.dataset],
     "NUM_CLASSES" : NUM_CLASSES[args.dataset],
-    # "MODEL_FILE" : 'result/pytorch_resnet18_fc_ms_nm_places365/snapshot/epoch_62.pth',
-    "MODEL_FILE" : None,
-    "FINETUNE": True,
+    # "MODEL_FILE" : 'result/pytorch_resnet18_fc_ma_t25_imagenet/snapshot/epoch_30.pth',
+    "MODEL_FILE" : None,#'zoo/resnet18_places365.pth.tar',
+    "FINETUNE": False,
     "WORKERS" : 16,
-    "BATCH_SIZE" : 64,
+    "BATCH_SIZE" : 192,
     "PRINT_FEQ" : 10,
-    "LR" : 0.01,
-    "EPOCHS" : 90,
+    "LR" : 0.1,
+    "EPOCHS" : 80,
 })
 if args.test_mode:
     settings.GPU = False
@@ -70,7 +71,7 @@ def train_resnet(model, train_loader, val_loader, dir=None):
 
     def adjust_learning_rate(optimizer, epoch):
         """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-        lr = settings.LR * (0.1 ** (epoch // 10))
+        lr = settings.LR * (0.1 ** (epoch // 20))
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
@@ -216,10 +217,9 @@ def main():
     model.train()
 
     train_resnet(model, train_loader, val_loader, snapshot_dir)
-    # for i in range(21,30):
-    #     settings.MODEL_FILE = 'result/pytorch_resnet50_fc_ma_nm_imagenet/snapshot/epoch_{}.pth'.format(i)
+    # for i in range(31,40):
+    #     settings.MODEL_FILE = 'result/pytorch_resnet18_fc_ma_t25_imagenet/snapshot/epoch_{}.pth'.format(i)
     #     val_resnet(model, val_loader)
-
     # val_resnet(model, val_loader)
 
 

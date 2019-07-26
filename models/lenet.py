@@ -23,7 +23,24 @@ class LeNet(nn.Module):
         out = self.fc3(out)
         return out
 
+class ResLeNet(nn.Module):
+    def __init__(self, in_channels=1, num_classes=10):
+        super(ResLeNet, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, 64, 5)
+        self.conv2 = nn.Conv2d(64, 32, 5)
+        self.conv3 = nn.Conv2d(32, 32, 3, 1, 1)
+        self.fc1   = nn.Linear(32, num_classes)
 
+    def forward(self, x):
+        out = F.relu(self.conv1(x))
+        out = F.max_pool2d(out, 2)
+        out = F.relu(self.conv2(out))
+        out = F.max_pool2d(out, 2)
+        out = F.relu(self.conv3(out))
+        out = F.avg_pool2d(out, 5)
+        b,c,_,_ = out.shape
+        out = self.fc1(out.view(b,c))
+        return out
 
 class CapLeNet(nn.Module):
     def __init__(self,in_channels=3, num_classes=10):

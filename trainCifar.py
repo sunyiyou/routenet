@@ -9,7 +9,7 @@ import torchvision
 import torchvision.transforms as transforms
 
 from util.common import progress_bar
-from models.resnet import resnet18_cifar, resnet18_fc_ms_cifar, resnet18_fc_ma_cifar, resnet18_fc_ca_cifar
+from models.resnet import resnet18_cifar, resnet18_fc_ma_cifar, resnet18_fc_ca_cifar
 from models.route import CG
 
 parser = argparse.ArgumentParser(description='PyTorch')
@@ -20,7 +20,9 @@ parser.add_argument('--arch', default='resnet18', type=str, help='arch')
 
 args = parser.parse_args()
 
-net = resnet18_fc_ca_cifar()
+from models.lenet import ResLeNet
+# net = resnet18_cifar()
+net = resnet18_fc_ma_cifar(topk=10)
 print(net)
 print('==> Building model..')
 
@@ -28,8 +30,8 @@ print('==> Building model..')
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-batch_size = 128
-test_batch_size = 128
+batch_size = 256
+test_batch_size = 256
 
 # Data
 print('==> Preparing data..')
@@ -78,7 +80,7 @@ net = net.to(device)
 #     net = torch.nn.DataParallel(net)
 # checkpoint = torch.load('./checkpoint/ckpt.t7')
 # net.load_state_dict(checkpoint['net'])
-# start_epoch = 90
+# start_epoch = 95
 # if args.resume:
 #     # Load checkpoint.
 #     print('==> Resuming from checkpoint..')
@@ -90,8 +92,7 @@ net = net.to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-# optimizer = optim.SGD(nn.Sequential(*list(net.modules())[:-1]).parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-# optimizer2 = CG(nn.Sequential(list(net.modules())[-1]).parameters(), lr=args.lr, momentum=0.9, weight_decay=1)
+
 
 
 def adjust_learning_rate(optimizer, epoch):
@@ -110,14 +111,13 @@ def train(epoch):
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
-        # optimizer2.zero_grad()
 
         outputs = net(inputs)
         loss = criterion(outputs, targets)
+        # loss += 0.5 * torch.norm(net.fc.weight)
+
         loss.backward()
         optimizer.step()
-        # optimizer2.step()
-
         train_loss += loss.item()
         _, predicted = outputs.max(1)
         total += targets.size(0)
@@ -160,7 +160,7 @@ def test(epoch):
         torch.save(state, './checkpoint/ckpt.t7')
         best_acc = acc
 
-
+adjust_learning_rate(optimizer, start_epoch)
 for epoch in range(start_epoch, start_epoch+200):
     train(epoch)
     test(epoch)

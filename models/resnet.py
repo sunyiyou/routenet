@@ -300,11 +300,12 @@ class ResNetCifarMeanShift(AbstractResNet):
 
 
 class ResNetCifarMaxAct(AbstractResNet):
-    def __init__(self, block, layers, num_classes=10):
+    def __init__(self, block, layers, num_classes=10, topk=50):
         super(ResNetCifarMaxAct, self).__init__(block, layers, num_classes)
         self.in_planes = 64
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        self.fc = RouteFcMaxAct(512 * block.expansion, num_classes)
+        self.avgpool = nn.AvgPool2d(4, stride=1)
+        self.fc = RouteFcMaxAct(512 * block.expansion, num_classes, topk=topk)
         self._initial_weight()
 
     def forward(self, x):
@@ -313,7 +314,7 @@ class ResNetCifarMaxAct(AbstractResNet):
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
-        out = F.avg_pool2d(out, 4)
+        out = self.avgpool(out)
         out = out.view(out.size(0), -1)
         out = self.fc(out)
         return out
@@ -339,14 +340,14 @@ class ResNetCifarCondAct(AbstractResNet):
         return out
 
 
-def resnet18_cifar():
-    return ResNetCifar(BasicBlock, [2,2,2,2])
+def resnet18_cifar(**kwargs):
+    return ResNetCifar(BasicBlock, [2,2,2,2], **kwargs)
 
-def resnet18_fc_ms_cifar():
-    return ResNetCifarMeanShift(BasicBlock, [2,2,2,2])
+def resnet18_fc_ms_cifar(**kwargs):
+    return ResNetCifarMeanShift(BasicBlock, [2,2,2,2], **kwargs)
 
-def resnet18_fc_ma_cifar():
-    return ResNetCifarMaxAct(BasicBlock, [2,2,2,2])
+def resnet18_fc_ma_cifar(**kwargs):
+    return ResNetCifarMaxAct(BasicBlock, [2,2,2,2], **kwargs)
 
-def resnet18_fc_ca_cifar():
-    return ResNetCifarCondAct(BasicBlock, [2,2,2,2])
+def resnet18_fc_ca_cifar(**kwargs):
+    return ResNetCifarCondAct(BasicBlock, [2,2,2,2], **kwargs)
