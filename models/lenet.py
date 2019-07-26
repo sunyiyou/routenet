@@ -38,7 +38,8 @@ class ResLeNet(nn.Module):
         out = F.max_pool2d(out, 2)
         out = F.relu(self.conv3(out))
         out = F.avg_pool2d(out, 5)
-        out = self.fc1(out.squeeze())
+        b,c,_,_ = out.shape
+        out = self.fc1(out.view(b,c))
         return out
 
 class CapLeNet(nn.Module):

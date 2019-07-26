@@ -5,8 +5,7 @@ import torch.nn as nn
 import time
 
 class RouteFcMaxAct(nn.Linear):
-
-    def __init__(self, in_features, out_features, bias=True, topk=50):
+    def __init__(self, in_features, out_features, bias=True, topk=25):
         super(RouteFcMaxAct, self).__init__(in_features, out_features, bias)
         self.topk = topk
 
@@ -17,6 +16,23 @@ class RouteFcMaxAct(nn.Linear):
         else:
             out = vote.topk(self.topk, 2)[0].sum(2)
         return out
+
+
+# class RouteConvMaxAct(nn.Linear):
+#
+#     def __init__(self, in_features, out_features, bias=True, topk=10):
+#         super(RouteConvMaxAct, self).__init__(in_features, out_features, bias)
+#         self.topk = topk
+#
+#     def forward(self, input):
+#         b, c, w, h = input.shape
+#         avg_input = input.view(b, c, w*h).mean(2)
+#         vote = avg_input[:, None, :] * self.weight # b, o, c
+#         if self.bias is not None:
+#             out = vote.topk(self.topk, 2)[0].sum(2) + self.bias
+#         else:
+#             out = vote.topk(self.topk, 2)[0].sum(2)
+#         return out
 
 class RouteFcCondAct(nn.Linear):
 
@@ -78,10 +94,10 @@ class RouteFcMeanShift(nn.Linear):
 
 class CG(torch.optim.Optimizer):
 
-    def __init__(self, params, lr=0.1, momentum=0, dampening=0, nesterov=False):
+    def __init__(self, params, lr=0.1, momentum=0, dampening=0, nesterov=False, K=10):
         if momentum < 0.0:
             raise ValueError("Invalid momentum value: {}".format(momentum))
-
+        self.topk = K
         defaults = dict(lr=lr, momentum=momentum, dampening=dampening, nesterov=nesterov)
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
@@ -92,7 +108,7 @@ class CG(torch.optim.Optimizer):
         for group in self.param_groups:
             group.setdefault('nesterov', False)
 
-    def step(self, closure=None):
+    def step(self, closure=None, target=None):
         loss = None
         if closure is not None:
             loss = closure()
@@ -103,12 +119,28 @@ class CG(torch.optim.Optimizer):
                 if p.grad is None:
                     continue
                 d_p = p.grad.data
+                # if target is not None and len(target) == 1:
+                #     if len(p.shape) == 2:
+                #         inds = torch.abs(d_p).topk(self.topk, 1)[1]
+                #         mask = torch.zeros_like(d_p).cuda().scatter(1, inds, 1.)
+                #         # mask_1 = torch.ones_like(d_p)
+                #         # mask_1[target] = -1
+                #         d_p *= mask
+                #         p.data = (1 - group['lr']) * p.data + group['lr'] * d_p
+                #     else:
+                #         p.data.add_(group['lr'], d_p)
+                # else:
+                if len(p.shape) == 2:
+                    inds = torch.abs(d_p).topk(self.topk, 1)[1]
+                    # inds = d_p.topk(self.topk, 1)[1]
+                    mask = torch.zeros_like(d_p).cuda().scatter(1, inds, 1.)
 
-                if weight_decay != 0:
-                    d_p.add_(-weight_decay, p.data)
-
-
-                p.data.add_(group['lr'], d_p)
+                    # d_p *= mask
+                    d_p = mask
+                    # d_p = -d_p
+                    p.data = (1 - group['lr']) * p.data + group['lr'] * d_p
+                else:
+                    p.data.add_(group['lr'], d_p)
 
         return loss
 

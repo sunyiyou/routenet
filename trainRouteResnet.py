@@ -11,6 +11,7 @@ parser.add_argument('--arch', default='resnet18_fc_ma', type=str, help='arch')
 parser.add_argument('--dataset', default='imagenet', type=str, help='dataset')
 parser.add_argument('--mark', default='t50', type=str, help='mark')
 parser.add_argument('--test_mode', default=False, type=bool, help='test')
+#  * VAL Prec@1 73.298 Prec@5 91.754
 
 args = parser.parse_args()
 
@@ -222,8 +223,6 @@ def main():
     for epoch in range(85,90):
         settings.MODEL_FILE = "result/pytorch_resnet18_fc_ma_t50_imagenet/snapshot/epoch_{}.pth".format(epoch)
         val_resnet(model, val_loader)
-
-
 
 if __name__ == '__main__':
     main()

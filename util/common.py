@@ -23,6 +23,9 @@ MODEL_DICT = {
     'resnet18': resnet18,
     'resnet18_fc_ma': resnet18_fc_ma,
     'resnet18_fc_ms': resnet18_fc_ms,
+    'resnet50': resnet50,
+    'resnet50_fc_ma': resnet50_fc_ma,
+    'resnet50_fc_ms': resnet50_fc_ms,
 }
 
 p = print
@@ -46,7 +49,7 @@ try:
     _, term_width = os.popen('stty size', 'r').read().split()
     term_width = int(term_width)
 except Exception:
-    term_width = 100
+    term_width = 10
 
 TOTAL_BAR_LENGTH = 65.
 last_time = time.time()
